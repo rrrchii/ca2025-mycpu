@@ -10,6 +10,7 @@ import chisel3.ChiselEnum
 import riscv.Parameters
 
 // RV32I opcode groupings
+// 為了告訴CPU這個instruction是哪一種type
 object InstructionTypes {
   val Load    = "b0000011".U(7.W)
   val OpImm   = "b0010011".U(7.W)
@@ -25,6 +26,7 @@ object InstructionTypes {
 }
 
 // Convenience aliases for specific opcodes
+// 為了方便使用，把一些常用的instruction type用alias表示
 object Instructions {
   val jal   = InstructionTypes.Jal
   val jalr  = InstructionTypes.Jalr
@@ -196,12 +198,18 @@ class InstructionDecode extends Module {
   // - Load instructions: Read from Memory
   // - JAL/JALR: Save PC+4 (return address)
   val wbSource = WireDefault(RegWriteSource.ALUResult)
+
+  //以下是在判斷WB(Write Back)階段的資料來源
   // TODO: Determine when to write back from Memory
-  when(?) {
+
+  // load instruction: 從memory中讀取資料
+  when(isLoad) {
     wbSource := RegWriteSource.Memory
   }
   // TODO: Determine when to write back PC+4
-  .elsewhen(?) {
+
+  // JAL/JALR: 從PC+4中讀取資料 (不太理解這個pc+4的意思)
+  .elsewhen(isJal || isJalr) {
     wbSource := RegWriteSource.NextInstructionAddress
   }
 
@@ -212,18 +220,22 @@ class InstructionDecode extends Module {
   val aluOp1Sel = WireDefault(ALUOp1Source.Register)
   // TODO: Determine when to use PC as first operand
   // Hint: Consider instructions that need PC-relative addressing
-  when(?) {
+
+  // 
+  when(isBranch || isAuipc || isJal) {
     aluOp1Sel := ALUOp1Source.InstructionAddress
   }
 
   // ALU operand 2 selection:
   // - Default: Register rs2 (for R-type instructions)
   // - I-type/S-type/B-type/U-type/J-type: Use immediate
+  
   val needsImmediate = isLoad || isStore || isOpImm || isBranch || isLui || isAuipc || isJal || isJalr
   val aluOp2Sel      = WireDefault(ALUOp2Source.Register)
   // TODO: Determine when to use immediate as second operand
   // Hint: Most instruction types except R-type use immediate
-  when(?) {
+  // R-type : add/sub/and/or/xor/sll/slr/sra/slt/sltu 不需要 immediate
+  when(needsImmediate) {
     aluOp2Sel := ALUOp2Source.Immediate
   }
 
@@ -276,10 +288,12 @@ class InstructionDecode extends Module {
   //   Hint: High bits at upper field, low bits at lower field
   //
   // TODO: Complete S-type immediate extension
+  // [31:25]：imm[11:5]（立即數高 7 位）、[11:7]：imm[4:0]（立即數低 5 位）
+  // 合在一起才是正確的立即數
   val immS = Cat(
-    Fill(Parameters.DataBits - 12, instruction(?)),  // Sign extension
-    instruction(?),                                  // High 7 bits
-    instruction(?)                                   // Low 5 bits
+    Fill(Parameters.DataBits - 12, instruction(31)),  // Sign extension
+    instruction(31, 25),                                  // High 7 bits
+    instruction(11, 7)                                   // Low 5 bits
   )
 
   // B-type (13-bit): Used for BEQ, BNE, BLT branch instructions
@@ -291,11 +305,11 @@ class InstructionDecode extends Module {
   // TODO: Complete B-type immediate extension
   val immB = Cat(
     Fill(Parameters.DataBits - 13, instruction(31)), // Sign extension
-    instruction(?),                                  // bit [12]
-    instruction(?),                                  // bit [11]
-    instruction(?),                                  // bits [10:5]
-    instruction(?),                                  // bits [4:1]
-    ?                                                // bit [0] = 0 (alignment)
+    instruction(31),                                  // bit [12]
+    instruction(7),                                  // bit [11]
+    instruction(30, 25),                                  // bits [10:5]
+    instruction(11, 8),                                  // bits [4:1]
+    0.U                                                // bit [0] = 0 (alignment)
   )
 
   // U-type (20-bit): Used for LUI, AUIPC
@@ -313,11 +327,11 @@ class InstructionDecode extends Module {
   // TODO: Complete J-type immediate extension
   val immJ = Cat(
     Fill(Parameters.DataBits - 21, instruction(31)), // Sign extension
-    instruction(?),                                  // bit [20]
-    instruction(?),                                  // bits [19:12]
-    instruction(?),                                  // bit [11]
-    instruction(?),                                  // bits [10:1]
-    ?                                                // bit [0] = 0 (alignment)
+    instruction(31),                                  // bit [20]
+    instruction(19, 12),                                  // bits [19:12]
+    instruction(20),                                  // bit [11]
+    instruction(30, 21),                                  // bits [10:1]
+    0.U                                                // bit [0] = 0 (alignment)
   )
 
   val immediate = MuxLookup(immKind.asUInt, 0.U(Parameters.DataBits.W))(

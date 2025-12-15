@@ -78,19 +78,22 @@ class MemoryAccess extends Module {
       Seq(
         // TODO: Complete LB (sign-extend byte)
         // Hint: Replicate sign bit, then concatenate with byte
-        InstructionsTypeL.lb  -> ?,
+        // byte是8bits組成的, 所以用Fill(24,byte(7))來填充24個sign bit, 然後再concatenate with byte
+        InstructionsTypeL.lb  -> Cat(Fill(24,byte(7)), byte),
 
         // TODO: Complete LBU (zero-extend byte)
         // Hint: Fill upper bits with zero, then concatenate with byte
-        InstructionsTypeL.lbu -> ?,
+        // 0.U是zero extension, 所以用Fill(24,0.U)來填充24個0, 然後再concatenate with byte
+        InstructionsTypeL.lbu -> Cat(Fill(24,0.U), byte),
 
         // TODO: Complete LH (sign-extend halfword)
         // Hint: Replicate sign bit, then concatenate with halfword
-        InstructionsTypeL.lh  -> ?,
+        // halfword是兩個byte 16bits組成的
+        InstructionsTypeL.lh  -> Cat(Fill(16,byte(15)), byte),
 
         // TODO: Complete LHU (zero-extend halfword)
         // Hint: Fill upper bits with zero, then concatenate with halfword
-        InstructionsTypeL.lhu -> ?,
+        InstructionsTypeL.lhu -> Cat(Fill(16,0.U), half),
 
         // LW: Load full word, no extension needed (completed example)
         InstructionsTypeL.lw  -> data
@@ -137,8 +140,8 @@ class MemoryAccess extends Module {
         // Hint:
         // 1. Enable single byte strobe at appropriate position
         // 2. Shift byte data to correct position based on address
-        writeStrobes(?) := true.B
-        writeData := data(?) << (mem_address_index << ?)
+        writeStrobes(mem_address_index) := true.B
+        writeData := data(7, 0) << (mem_address_index << )
       }
       is(InstructionsTypeS.sh) {
         // TODO: Complete store halfword logic

@@ -61,13 +61,16 @@ class InstructionFetch extends Module {
   // - BEQ taken: PC = 0x1000, target = 0x0FFC → next PC = 0x0FFC (control flow)
   when(io.instruction_valid) {
     io.instruction := io.instruction_read_data
-
+    
     // TODO: Complete PC update logic
     // Hint: Use multiplexer to select between jump target and sequential PC
     // - Check jump flag condition
     // - True case: Use jump target address
     // - False case: Sequential execution
-    pc := ?
+
+    pc := Mux(io.jump_flag_id, io.jump_address_id, pc + 4.U)  
+    // if(jump_flag_id == 1) pc_next = jump_address_id
+    // else pc_next = pc + 4
 
   }.otherwise {
     // When instruction is invalid, hold PC and insert NOP (ADDI x0, x0, 0)
