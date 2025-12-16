@@ -64,15 +64,18 @@ class MemoryAccess extends Module {
       bytes(i) := data((i + 1) * Parameters.ByteBits - 1, i * Parameters.ByteBits)
     }
     // Select byte based on lower 2 address bits (mem_address_index)
+    // mem_address_index :　00/01/10/11  看是哪個byte
     val byte = bytes(mem_address_index)
+
     // Select halfword based on bit 1 of address (word-aligned halfwords)
+    // mem_address_index :　00/01/10/11  mem_address_index(1) : 0/1  就可以知道halfword是哪兩個byte
     val half = Mux(mem_address_index(1), Cat(bytes(3), bytes(2)), Cat(bytes(1), bytes(0)))
 
     // TODO: Complete sign/zero extension for load operations
     // Hint:
     // - Use Fill to replicate a bit multiple times
-    // - For sign extension: Fill with the sign bit (MSB)
-    // - For zero extension: Fill with zeros
+    // - For sign extension: Fill with the sign bit (MSB), LB/LH need sign extension
+    // - For zero extension: Fill with zeros, LBU/LHU need zero extension
     // - Use Cat to concatenate extension bits with loaded data
     io.wb_memory_read_data := MuxLookup(io.funct3, 0.U)(
       Seq(
@@ -89,7 +92,7 @@ class MemoryAccess extends Module {
         // TODO: Complete LH (sign-extend halfword)
         // Hint: Replicate sign bit, then concatenate with halfword
         // halfword是兩個byte 16bits組成的
-        InstructionsTypeL.lh  -> Cat(Fill(16,byte(15)), byte),
+        InstructionsTypeL.lh  -> Cat(Fill(16,half(15)), half),
 
         // TODO: Complete LHU (zero-extend halfword)
         // Hint: Fill upper bits with zero, then concatenate with halfword
@@ -132,7 +135,7 @@ class MemoryAccess extends Module {
     val strobeInit   = VecInit(Seq.fill(Parameters.WordSize)(false.B))
     val defaultData  = 0.U(Parameters.DataWidth)
     val writeStrobes = WireInit(strobeInit)
-    val writeData    = WireDefault(defaultData) //123
+    val writeData    = WireDefault(defaultData) 
 
     switch(io.funct3) {
       is(InstructionsTypeS.sb) {
@@ -140,24 +143,25 @@ class MemoryAccess extends Module {
         // Hint:
         // 1. Enable single byte strobe at appropriate position
         // 2. Shift byte data to correct position based on address
+        // << 3 : 左移3位, 因為一個byte是8bits, 所以左移3位就是乘以8
         writeStrobes(mem_address_index) := true.B
-        writeData := data(7, 0) << (mem_address_index << 3)
+        writeData := data(7, 0) << (mem_address_index << 3) // <<3 : 因為1個byte是8bits, 所以左移3位就是乘以8, 對齊到正確的byte位置, 然後再取低8位
       }
       is(InstructionsTypeS.sh) {
         // TODO: Complete store halfword logic
         // Hint: Check address to determine lower/upper halfword position
-        when(mem_address_index(?) === 0.U) {
+        when(mem_address_index(1) === 0.U) {
           // Lower halfword (bytes 0-1)
           // TODO: Enable strobes for lower two bytes, no shifting needed
-          writeStrobes(?) := true.B
-          writeStrobes(?) := true.B
-          writeData := data(?)
+          writeStrobes(0) := true.B
+          writeStrobes(1) := true.B
+          writeData := data(15,0)
         }.otherwise {
           // Upper halfword (bytes 2-3)
           // TODO: Enable strobes for upper two bytes, apply appropriate shift
-          writeStrobes(?) := true.B
-          writeStrobes(?) := true.B
-          writeData := data(?) << ?
+          writeStrobes(2) := true.B
+          writeStrobes(3) := true.B
+          writeData := data(15,0) << 16.U
         }
       }
       is(InstructionsTypeS.sw) {

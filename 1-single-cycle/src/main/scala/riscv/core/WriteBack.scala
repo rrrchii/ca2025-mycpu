@@ -43,10 +43,16 @@ class WriteBack extends Module {
   //
   // TODO: Complete MuxLookup to multiplex writeback sources
   // Hint: Specify default value and cases for each source type
-  io.regs_write_data := MuxLookup(io.regs_write_source, ?)(
+
+ // WB 階段：只對需寫回暫存器的指令使用
+ // - ALU 結果：一般算術/邏輯/位移/比較、AUIPC/LUI 等
+ // - 記憶體資料：Load 指令（LB/LH/LW/LBU/LHU）
+ // - PC+4：JAL/JALR 的返回位址
+ // - 分支/Store 不寫回暫存器（但分支仍會在 EX 算目標 PC，供 IF 使用）
+  io.regs_write_data := MuxLookup(io.regs_write_source, io.alu_result)(
     Seq(
-      RegWriteSource.Memory                 -> ?,
-      RegWriteSource.NextInstructionAddress -> ?
+      RegWriteSource.Memory                 -> io.memory_read_data,
+      RegWriteSource.NextInstructionAddress -> (io.instruction_address + 4.U(Parameters.AddrWidth))
     )
   )
 }
