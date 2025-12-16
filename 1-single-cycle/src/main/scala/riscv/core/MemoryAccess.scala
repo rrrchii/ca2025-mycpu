@@ -32,7 +32,7 @@ class MemoryAccess extends Module {
 
     val memory_bundle = Flipped(new RAMBundle)
   })
-  val mem_address_index = io.alu_result(log2Up(Parameters.WordSize) - 1, 0).asUInt
+  val mem_address_index = io.alu_result(log2Up(Parameters.WordSize) - 1, 0).asUInt  
 
   io.memory_bundle.write_enable := false.B
   io.memory_bundle.write_data   := 0.U
@@ -132,7 +132,7 @@ class MemoryAccess extends Module {
     val strobeInit   = VecInit(Seq.fill(Parameters.WordSize)(false.B))
     val defaultData  = 0.U(Parameters.DataWidth)
     val writeStrobes = WireInit(strobeInit)
-    val writeData    = WireDefault(defaultData)
+    val writeData    = WireDefault(defaultData) //123
 
     switch(io.funct3) {
       is(InstructionsTypeS.sb) {
@@ -141,7 +141,7 @@ class MemoryAccess extends Module {
         // 1. Enable single byte strobe at appropriate position
         // 2. Shift byte data to correct position based on address
         writeStrobes(mem_address_index) := true.B
-        writeData := data(7, 0) << (mem_address_index << )
+        writeData := data(7, 0) << (mem_address_index << 3)
       }
       is(InstructionsTypeS.sh) {
         // TODO: Complete store halfword logic
