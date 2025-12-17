@@ -1,3 +1,4 @@
+//finish
 // SPDX-License-Identifier: MIT
 // MyCPU is freely redistributable under the MIT License. See the file
 // "LICENSE" for information on usage and redistribution of this file.
@@ -279,7 +280,7 @@ class InstructionDecode extends Module {
   //
   val immI = Cat(
     Fill(Parameters.DataBits - 12, instruction(31)),  // Sign extension: replicate bit 31 twenty times
-    instruction(31, 20)                               // Immediate: bits [31:20]
+    instruction(31, 20)                                // Immediate: bits [31:20]
   )
 
   // S-type (12-bit): Used for SW, SH, SB store instructions
@@ -292,8 +293,8 @@ class InstructionDecode extends Module {
   // 合在一起才是正確的立即數
   val immS = Cat(
     Fill(Parameters.DataBits - 12, instruction(31)),  // Sign extension
-    instruction(31, 25),                              // High 7 bits
-    instruction(11, 7)                                // Low 5 bits
+    instruction(31, 25),                                  // High 7 bits
+    instruction(11, 7)                                   // Low 5 bits
   )
 
   // B-type (13-bit): Used for BEQ, BNE, BLT branch instructions
@@ -305,11 +306,11 @@ class InstructionDecode extends Module {
   // TODO: Complete B-type immediate extension
   val immB = Cat(
     Fill(Parameters.DataBits - 13, instruction(31)), // Sign extension
-    instruction(31),                                 // bit [12]
+    instruction(31),                                  // bit [12]
     instruction(7),                                  // bit [11]
-    instruction(30, 25),                             // bits [10:5]
-    instruction(11, 8),                              // bits [4:1]
-    0.U                                              // bit [0] = 0 (alignment)
+    instruction(30, 25),                                  // bits [10:5]
+    instruction(11, 8),                                  // bits [4:1]
+    0.U                                                // bit [0] = 0 (alignment)
   )
 
   // U-type (20-bit): Used for LUI, AUIPC
@@ -327,11 +328,11 @@ class InstructionDecode extends Module {
   // TODO: Complete J-type immediate extension
   val immJ = Cat(
     Fill(Parameters.DataBits - 21, instruction(31)), // Sign extension
-    instruction(31),                                 // bit [20]
-    instruction(19, 12),                             // bits [19:12]
-    instruction(20),                                 // bit [11]
-    instruction(30, 21),                             // bits [10:1]
-    0.U                                              // bit [0] = 0 (alignment)
+    instruction(31),                                  // bit [20]
+    instruction(19, 12),                                  // bits [19:12]
+    instruction(20),                                  // bit [11]
+    instruction(30, 21),                                  // bits [10:1]
+    0.U                                                // bit [0] = 0 (alignment)
   )
 
   val immediate = MuxLookup(immKind.asUInt, 0.U(Parameters.DataBits.W))(
