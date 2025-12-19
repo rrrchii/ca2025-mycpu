@@ -24,7 +24,7 @@ class CSRDirectAccessBundle extends Bundle {
   val mstatus = Input(UInt(Parameters.DataWidth))
   val mepc    = Input(UInt(Parameters.DataWidth))
   val mcause  = Input(UInt(Parameters.DataWidth))
-  val mtvec   = Input(UInt(Parameters.DataWidth))
+  val mtvec   = Input(UInt(Parameters.DataWidth)) // trap handler 入口地址
   val mie     = Input(UInt(Parameters.DataWidth))
 
   val mstatus_write_data = Output(UInt(Parameters.DataWidth))
@@ -53,22 +53,24 @@ class CSRDirectAccessBundle extends Bundle {
 class CLINT extends Module {
   val io = IO(new Bundle {
     // Interrupt signals from peripherals
-    val interrupt_flag = Input(UInt(Parameters.InterruptFlagWidth))
+    val interrupt_flag = Input(UInt(Parameters.InterruptFlagWidth))          // 判斷是否有interrupt需要處理
 
-    val instruction         = Input(UInt(Parameters.InstructionWidth))
+    val instruction         = Input(UInt(Parameters.InstructionWidth))       
     val instruction_address = Input(UInt(Parameters.AddrWidth))
 
     val jump_flag    = Input(Bool())
     val jump_address = Input(UInt(Parameters.AddrWidth))
 
-    val interrupt_handler_address = Output(UInt(Parameters.AddrWidth))
-    val interrupt_assert          = Output(Bool())
+    val interrupt_handler_address = Output(UInt(Parameters.AddrWidth))       // 中斷處理器的位址
+    val interrupt_assert          = Output(Bool())                           // 告訴CPU 現在有interrupt需要處理
 
     val csr_bundle = new CSRDirectAccessBundle
   })
-  val interrupt_enable_global   = io.csr_bundle.mstatus(3) // MIE bit (global enable)
-  val interrupt_enable_timer    = io.csr_bundle.mie(7)     // MTIE bit (timer enable)
-  val interrupt_enable_external = io.csr_bundle.mie(11)    // MEIE bit (external enable)
+
+  // CLINT讀CSR資訊，判斷
+  val interrupt_enable_global   = io.csr_bundle.mstatus(3) // MIE bit (global enable)    來自 mstatus 的 MIE 位（bit3）。為 1 才允許任何機器層中斷被響應。
+  val interrupt_enable_timer    = io.csr_bundle.mie(7)     // MTIE bit (timer enable)    來自 mie 的 MTIE 位（bit7）。為 1 才允許 timer 中斷被響應。
+  val interrupt_enable_external = io.csr_bundle.mie(11)    // MEIE bit (external enable) 來自 mie 的 MEIE 位（bit11）。為 1 才允許外部中斷被響應。
 
   val instruction_address = Mux(
     io.jump_flag,
@@ -106,9 +108,10 @@ class CLINT extends Module {
     interrupt_enable_external
   )
 
-  when(io.interrupt_flag =/= InterruptCode.None && interrupt_enable_global && interrupt_source_enabled) { // interrupt
+   // InterruptCode.None
+  when(io.interrupt_flag =/= InterruptCode.None && interrupt_enable_global && interrupt_source_enabled) { // interrupt 成立
     io.interrupt_assert          := true.B
-    io.interrupt_handler_address := io.csr_bundle.mtvec
+    io.interrupt_handler_address := io.csr_bundle.mtvec  // trap handler entry address
     // TODO: Complete mstatus update logic for interrupt entry
     // Hint: mstatus bit layout (showing only relevant bits):
     //   [31:13] | [12:11:MPP] | [10:8] | [7:MPIE] | [6:4] | [3:MIE] | [2:0]
@@ -126,7 +129,7 @@ class CLINT extends Module {
         0.U(1.W), // mie ← 0 (disable interrupts)
         io.csr_bundle.mstatus(2, 0)
       )
-    io.csr_bundle.mepc_write_data := instruction_address
+    io.csr_bundle.mepc_write_data := instruction_address   // 把當前pc存到mepc，當mret時，可以恢復執行
     io.csr_bundle.mcause_write_data :=
       Cat(
         1.U,
@@ -183,7 +186,7 @@ class CLINT extends Module {
     // - After MRET:  mstatus.MIE=1, mstatus.MPIE=1 (interrupts re-enabled)
   }.elsewhen(io.instruction === InstructionsRet.mret) { // ret
     io.interrupt_assert          := true.B
-    io.interrupt_handler_address := io.csr_bundle.mepc
+    io.interrupt_handler_address := io.csr_bundle.mepc  // mret trigger, jump to mepc
     // TODO: Complete mstatus update logic for MRET
     // Hint: mstatus bit layout (showing only relevant bits):
     //   [31:13] | [12:11:MPP] | [10:8] | [7:MPIE] | [6:4] | [3:MIE] | [2:0]

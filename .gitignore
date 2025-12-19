@@ -61,3 +61,5 @@ test_run_dir/
 **/src/main/resources/test.asmbin
 **/src/main/resources/test_*.asmbin
 .venv/
+.venv/
+**/.venv/

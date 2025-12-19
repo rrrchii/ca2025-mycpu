@@ -9,15 +9,16 @@ import chisel3.util._
 import riscv.Parameters
 
 // RISC-V Machine-mode CSR addresses (Privileged Spec Vol.II)
+// CSRRegisterAddrWidth (address space) : 12 bits
 object CSRRegister {
   val MSTATUS  = 0x300.U(Parameters.CSRRegisterAddrWidth)
   val MIE      = 0x304.U(Parameters.CSRRegisterAddrWidth)
   val MTVEC    = 0x305.U(Parameters.CSRRegisterAddrWidth)
-  val MSCRATCH = 0x340.U(Parameters.CSRRegisterAddrWidth)
-  val MEPC     = 0x341.U(Parameters.CSRRegisterAddrWidth)
-  val MCAUSE   = 0x342.U(Parameters.CSRRegisterAddrWidth)
-  val CycleL   = 0xc00.U(Parameters.CSRRegisterAddrWidth)
-  val CycleH   = 0xc80.U(Parameters.CSRRegisterAddrWidth)
+  val MSCRATCH = 0x340.U(Parameters.CSRRegisterAddrWidth)  
+  val MEPC     = 0x341.U(Parameters.CSRRegisterAddrWidth)  
+  val MCAUSE   = 0x342.U(Parameters.CSRRegisterAddrWidth)   //
+  val CycleL   = 0xc00.U(Parameters.CSRRegisterAddrWidth)   // 平測效能用，讀取處理器跑了多少時脈週期，分高32和低32
+  val CycleH   = 0xc80.U(Parameters.CSRRegisterAddrWidth)   // 平測效能用，讀取處理器跑了多少時脈週期，分高32和低32
 }
 
 /**
@@ -102,13 +103,13 @@ class CSR extends Module {
     val clint_access_bundle = Flipped(new CSRDirectAccessBundle)
   })
 
-  val mstatus  = RegInit(UInt(Parameters.DataWidth), 0.U)
-  val mie      = RegInit(UInt(Parameters.DataWidth), 0.U)
-  val mtvec    = RegInit(UInt(Parameters.DataWidth), 0.U)
-  val mscratch = RegInit(UInt(Parameters.DataWidth), 0.U)
-  val mepc     = RegInit(UInt(Parameters.DataWidth), 0.U)
-  val mcause   = RegInit(UInt(Parameters.DataWidth), 0.U)
-  val cycles   = RegInit(UInt(64.W), 0.U)
+  val mstatus  = RegInit(UInt(Parameters.DataWidth), 0.U)   // 機器模式的全域狀態與中斷控制
+  val mie      = RegInit(UInt(Parameters.DataWidth), 0.U)   // 控制哪些中斷來源可被響應
+  val mtvec    = RegInit(UInt(Parameters.DataWidth), 0.U)   // trap 入口位址（中斷/例外處理的起始 PC）
+  val mscratch = RegInit(UInt(Parameters.DataWidth), 0.U)   // 暫存用暫存器，陷入時軟體可自由使用
+  val mepc     = RegInit(UInt(Parameters.DataWidth), 0.U)   // trap 發生時保存的 PC，mret 返回時用來恢復執行
+  val mcause   = RegInit(UInt(Parameters.DataWidth), 0.U)   // trap 的原因碼，最高位指示中斷/例外，其餘位為原因號。
+  val cycles   = RegInit(UInt(64.W), 0.U)                   // 平測效能用，讀取處理器跑了多少時脈週期，分高32和低32
   // ============================================================
   // [CA25: Exercise 10] CSR Register Lookup Table - CSR Address Mapping
   // ============================================================
@@ -126,17 +127,17 @@ class CSR extends Module {
   val regLUT =
     IndexedSeq(
       // TODO: Complete CSR address to register mapping
-      CSRRegister.MSTATUS  -> ?,
-      CSRRegister.MIE      -> ?,
-      CSRRegister.MTVEC    -> ?,
-      CSRRegister.MSCRATCH -> ?,
-      CSRRegister.MEPC     -> ?,
-      CSRRegister.MCAUSE   -> ?,
+      CSRRegister.MSTATUS  -> mstatus,
+      CSRRegister.MIE      -> mie,
+      CSRRegister.MTVEC    -> mtvec,    
+      CSRRegister.MSCRATCH -> mscratch,
+      CSRRegister.MEPC     -> mepc,
+      CSRRegister.MCAUSE   -> mcause,
 
       // 64-bit cycle counter split into high and low 32 bits
       // TODO: Extract low 32 bits and high 32 bits from cycles
-      CSRRegister.CycleL   -> ?,
-      CSRRegister.CycleH   -> ?,
+      CSRRegister.CycleL   -> cycles(31, 0),
+      CSRRegister.CycleH   -> cycles(63, 32),
     )
   cycles := cycles + 1.U
 
@@ -162,24 +163,25 @@ class CSR extends Module {
   // 2. CPU CSR instruction write: Secondary priority
   //
   // CSRs requiring atomic update (interrupt-related):
-  // - mstatus: Save/restore interrupt enable state
-  // - mepc: Save exception return address
-  // - mcause: Record trap cause
+  // - mstatus: Save/restore interrupt enable state 全域中斷使能與相關狀態
+  // - mepc: Save exception return address 例外返回地址
+  // - mcause: Record trap cause 記錄陷阱原因
   when(io.clint_access_bundle.direct_write_enable) {
     // Atomic update when CLINT triggers interrupt
-    // TODO: Which CSRs does CLINT need to write?
-    ? := io.clint_access_bundle.mstatus_write_data
-    ? := io.clint_access_bundle.mepc_write_data
-    ? := io.clint_access_bundle.mcause_write_data
+    // 發生中斷的時候優先度最高，所以mstatus, mepc, mcause需要被更新。
+    // TODO: Which CSRs does CLINT need to write
+    mstatus := io.clint_access_bundle.mstatus_write_data
+    mepc := io.clint_access_bundle.mepc_write_data
+    mcause := io.clint_access_bundle.mcause_write_data
   }.elsewhen(io.reg_write_enable_id) {
     // CPU CSR instruction write
     // TODO: Update corresponding CSR based on write address
     when(io.reg_write_address_id === CSRRegister.MSTATUS) {
-      mstatus := ?
+      mstatus := io.reg_write_data_ex
     }.elsewhen(io.reg_write_address_id === CSRRegister.MEPC) {
-      ? := io.reg_write_data_ex
+      mepc := io.reg_write_data_ex
     }.elsewhen(io.reg_write_address_id === CSRRegister.MCAUSE) {
-      ? := io.reg_write_data_ex
+      mcause := io.reg_write_data_ex
     }
   }
 
@@ -190,11 +192,11 @@ class CSR extends Module {
   when(io.reg_write_enable_id) {
     // TODO: Complete write logic for these CSRs
     when(io.reg_write_address_id === CSRRegister.MIE) {
-      ? := io.reg_write_data_ex
+      mie := io.reg_write_data_ex
     }.elsewhen(io.reg_write_address_id === CSRRegister.MTVEC) {
-      ? := io.reg_write_data_ex
+      mtvec := io.reg_write_data_ex
     }.elsewhen(io.reg_write_address_id === CSRRegister.MSCRATCH) {
-      ? := io.reg_write_data_ex
+      mscratch := io.reg_write_data_ex
     }
   }
 
