@@ -162,31 +162,31 @@ class Control extends Module {
   // detection logic implemented above
   //
   // Q1: Why do we need to stall for load-use hazards?
-  // A: 
+  // A: Because load data returns at end of MEM, the very next instruction in EX cannot get it via forwarding in time; stalling prevents using stale/unknown data.
   // Hint: Consider data dependency and forwarding limitations
   //
   // Q2: What is the difference between "stall" and "flush" operations?
-  // A: [Student answer here]
+  // A: "stall" is to hold pipeline register tj wait for data or source to be ready; "flush" is to clear pipeline register to NOP to discard wrong-path instructions.
   // Hint: Compare their effects on pipeline registers and PC
   //
   // Q3: Why does jump instruction with register dependency need stall?
-  // A: [Student answer here]
+  // A: Jump instruction using a register target must wait until that register’s value is produced in EX/MEM stage, stall avoid computing wrong target.
   // Hint: When is jump target address available?
   //
   // Q4: In this design, why is branch penalty only 1 cycle instead of 2?
-  // A: [Student answer here]
+  // A: Beacuse branch condition is resolved in ID stage using forwarded value, so only IF stage need to be flushed, giving 1 cycle penlty .
   // Hint: Compare ID-stage vs EX-stage branch resolution
   //
   // Q5: What would happen if we removed the hazard detection logic entirely?
-  // A: [Student answer here]
+  // A: The pipeline would loss the ability tio handle data hazards and control flow correctness.
   // Hint: Consider data hazards and control flow correctness
   //
   // Q6: Complete the stall condition summary:
   // Stall is needed when:
-  // 1. ? (EX stage condition)
-  // 2. ? (MEM stage condition)
+  // 1. EX stage has a load whose rd equals ID stage rs1/rs2 (EX stage condition)
+  // 2. ID jump needs a register that EX is about to write (MEM stage condition)
   //
   // Flush is needed when:
-  // 1. ? (Branch/Jump condition)
+  // 1. A branch/jump is taken (jump_flag), so IF’s fetched instruction on the wrong path must be discarded. (Branch/Jump condition)
   //
 }
